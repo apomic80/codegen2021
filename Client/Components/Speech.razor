@@ -1,0 +1,84 @@
+@inject IJSRuntime jsRuntime
+<button class="btn btn-primary" @onclick="RecordAudio">
+    <span class="oi oi-microphone"></span> @Status
+</button>
+<br />
+@if(!string.IsNullOrEmpty(Message))
+{
+    <span>@Message</span>
+    <audio></audio>
+    <button class="btn btn-primary" @onclick="SynthetizeText">
+        <span class="oi oi-microphone"></span> Synthetize
+    </button>
+    <br />
+    <h3>Entities</h3>
+    <ul>
+        @foreach (var entity in speechResult.Entities)
+        {
+            <li>@entity.Text : @entity.Category (@entity.ConfidenceScore)</li>
+        }
+    </ul>
+    <h3>KeyPhrases</h3>
+    <ul>
+        @foreach (var keyPhrase in speechResult.KeyPhrases)
+        {
+            <li>@keyPhrase</li>
+        }
+    </ul>
+    <h3>Intents (Top: @speechResult.TopIntent)</h3>
+    <ul>
+        @foreach (var intent in speechResult.Intents)
+        {
+            <li>@intent.Intent (@intent.Score)</li>
+        }
+    </ul>
+    <h3>Prediction Entities</h3>
+    <ul>
+        @foreach (var entity in speechResult.PredictionEntities)
+        {
+            <li>@entity.Key : @entity.Value</li>
+        }
+    </ul>
+}
+
+@code {
+    private string Status = "Record";
+    private string Message = string.Empty;
+    private IJSObjectReference speechModule;
+    private SpeechResult speechResult;
+
+    protected override async Task OnInitializedAsync()
+    {
+        this.speechModule = await jsRuntime.InvokeAsync<IJSObjectReference>("import", "./js/speech.js");
+    }
+
+    private async Task SynthetizeText()
+    {
+        await this.speechModule.InvokeVoidAsync("synthetizeText", new SynthesisRequest() { Text = Message });
+    }
+
+    private async Task RecordAudio()
+    {
+        var thisRef = DotNetObjectReference.Create(this);
+        var result = await this.speechModule.InvokeAsync<bool>("init", thisRef);
+        if(result)
+        {
+            Status = "Recording";
+            Message = string.Empty;
+        }
+        else
+        {
+            Status = "Record";
+            Message = "Error";
+        }
+    }
+
+    [JSInvokable]
+    public void ShowResult(SpeechResult result)
+    {
+        this.Message = result.Text;
+        this.Status = "Record";
+        this.speechResult = result;
+        StateHasChanged();
+    }
+}
